@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   verify:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
@@ -21,7 +21,7 @@ jobs:
         with:
           node-version: 24
       - run: npm install --global pnpm@11.25.0
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-noto-core
+      - run: sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update && sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y --no-install-recommends ffmpeg fonts-noto-core
       - run: pnpm install --frozen-lockfile --ignore-scripts
       - run: pnpm check
         env:
@@ -30,7 +30,7 @@ jobs:
   image:
     needs: verify
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
       contents: read
@@ -58,7 +58,7 @@ jobs:
         with:
           node-version: 24
       - run: npm install --global pnpm@11.25.0 && pnpm install --frozen-lockfile --ignore-scripts
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 update && sudo apt-get -o Acquire::Retries=2 -o Acquire::http::Timeout=20 -o Acquire::https::Timeout=20 install -y --no-install-recommends ffmpeg
       - run: node scripts/create-test-video.mjs && node scripts/smoke-studio.mjs
         env:
           FFMPEG_PATH: /usr/bin/ffmpeg
