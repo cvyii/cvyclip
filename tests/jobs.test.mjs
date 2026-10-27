@@ -16,12 +16,12 @@ async function fixture(t,options={}){
   let jobs=await createJobs({store,media,ai,config});
   t.after(async()=>{await jobs.shutdown();await rm(root,{recursive:true,force:true});});
   const makeProject=async(duration=10)=>projects.create({originalName:'source.mp4',sourcePath:source,sizeBytes:13,extension:'.mp4',media:{duration,width:640,height:360,hasAudio:true}});
-  async function settle(id){for(let i=0;i<300;i++){const p=await projects.get(id);if(p.job&&['ready','failed'].includes(p.job.state))return p;await new Promise(r=>setTimeout(r,10));}throw new Error('Job did not finish.');}
+  async function settle(id){for(let i=0;i<300;i++){const p=await projects.get(id);if(p.job&&['ready','failed'].includes(p.job.state))return p;await new Promise(r=>setTimeout(r,10));}throw new Error('Job did not finish: '+JSON.stringify((await projects.get(id)).job));}
   return {store,config,projects,makeProject,settle,get jobs(){return jobs;},async restart(){await jobs.shutdown();jobs=await createJobs({store,media,ai,config});await jobs.recover();return jobs;}};
 }
 test('duplicate analysis requests share a job and reserve source minutes once',async t=>{
   const f=await fixture(t);const p=await f.makeProject();const [a,b]=await Promise.all([f.jobs.enqueueAnalysis(p.id),f.jobs.enqueueAnalysis(p.id)]);assert.equal(a.job.id,b.job.id);
-  const done=await f.settle(p.id);assert.equal(done.status,'ready');assert.equal(done.suggestions[0].title,'One complete idea');assert.equal((await f.jobs.usage()).usedSeconds,10);
+  const done=await f.settle(p.id);assert.equal(done.status,'ready',JSON.stringify(done.job));assert.equal(done.suggestions[0].title,'One complete idea');assert.equal((await f.jobs.usage()).usedSeconds,10);
   const again=await f.jobs.enqueueAnalysis(p.id);assert.equal(again.job.id,done.job.id);assert.equal((await f.jobs.usage()).usedSeconds,10);
 });
 test('daily analysis limits survive restart and block excess work before provider use',async t=>{
@@ -40,4 +40,10 @@ test('stale in-flight provider jobs become retryable failures rather than replay
 });
 test('manual export persists a downloadable artifact without consuming AI allowance',async t=>{
   const f=await fixture(t),p=await f.makeProject();await f.jobs.enqueueExport(p.id,{...p.clip,ratio:'1:1'});const done=await f.settle(p.id);assert.equal(done.job.state,'ready');assert.equal(done.exports.length,1);assert.equal(done.exports[0].ratio,'1:1');assert.equal((await f.store.stat(done.exports[0].key)).size,19);assert.equal((await f.jobs.usage()).usedSeconds,0);
+});
+test('shutdown waits for the actual active worker after duplicate enqueue calls',async t=>{
+  let release,started;const held=new Promise(r=>{release=r;}),begun=new Promise(r=>{started=r;});
+  const ai={transcribeAudio:async()=>{started();await held;return {text:'Story',cues:[{start:0,end:10,text:'Story'}]};},suggestClips:async()=>[{start:0,end:10,title:'Story',rationale:'Complete.'}]};
+  const f=await fixture(t,{ai}),p=await f.makeProject();await Promise.all([f.jobs.enqueueAnalysis(p.id),f.jobs.enqueueAnalysis(p.id)]);await begun;
+  let closed=false;const closing=f.jobs.shutdown().then(()=>{closed=true;});await new Promise(r=>setTimeout(r,20));try{assert.equal(closed,false);}finally{release();await closing;}
 });

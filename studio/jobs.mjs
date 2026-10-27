@@ -7,7 +7,7 @@ import {createProjects,projectKey} from './projects.mjs';
 
 const stamp=()=>new Date().toISOString(),leaseKey='jobs/worker.json',leaseMs=45000;
 export async function createJobs({store,media,ai,config}){
-  const owner=randomUUID(),projects=createProjects(store,config);let draining=false,stopped=false,drainPromise=Promise.resolve(),controller;
+  const owner=randomUUID(),projects=createProjects(store,config);let draining=false,stopped=false,wakeRequested=false,drainPromise=Promise.resolve(),controller;
   const dayKey=()=>`usage/${new Date().toISOString().slice(0,10)}.json`;
   async function usage(){const value=await store.readJson(dayKey());return {usedSeconds:value?.usedSeconds||0,limitSeconds:config.dailyAnalysisSeconds||1200,date:new Date().toISOString().slice(0,10)};}
   async function reserve(id,seconds){return store.updateJson(dayKey(),current=>{const value=current||{usedSeconds:0,reservations:{}};if(value.reservations[id])return value;if(value.usedSeconds+seconds>(config.dailyAnalysisSeconds||1200))throw new AppError('Today’s AI analysis allowance is used. Your video is saved; you can edit manually or return tomorrow.',429,'daily_limit');return {...value,usedSeconds:value.usedSeconds+seconds,reservations:{...value.reservations,[id]:seconds}};});}
@@ -47,11 +47,10 @@ export async function createJobs({store,media,ai,config}){
     }finally{clearInterval(heartbeat);await rm(directory,{recursive:true,force:true});controller=null;}
   }
   async function drain(){
-    if(draining||stopped)return;draining=true;
-    try{if(!await claim())return;for(;;){if(stopped)break;const next=(await projects.list()).find(p=>p.job?.state==='queued');if(!next)break;await processJob(next);}}
-    finally{await release().catch(()=>{});draining=false;}
+    try{do{wakeRequested=false;if(!await claim())return;for(;;){if(stopped)break;const next=(await projects.list()).find(p=>p.job?.state==='queued');if(!next)break;await processJob(next);}await release();}while(wakeRequested&&!stopped);}
+    finally{await release().catch(()=>{});draining=false;if(wakeRequested&&!stopped)schedule();}
   }
-  function schedule(){if(stopped)return;queueMicrotask(()=>{drainPromise=drain().catch(()=>{});});}
+  function schedule(){if(stopped)return;wakeRequested=true;if(draining)return;draining=true;drainPromise=drain().catch(()=>{});}
   async function recover(){
     const all=await projects.list();for(const p of all){if(p.job?.state==='running'&&new Date(p.job.heartbeat||0).getTime()<Date.now()-leaseMs){await update(p.id,p.job.id,current=>({...current,status:'error',job:{...current.job,state:'failed',providerInFlight:false,error:{code:'interrupted',message:'Processing was interrupted. Completed work is saved. Choose Retry; AI requests will not restart automatically.'},stage:'Interrupted',finishedAt:stamp()}}));}}
     schedule();
