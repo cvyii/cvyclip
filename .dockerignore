@@ -1,0 +1,7 @@
+# Only explicit runtime inputs are sent to the image builder.
+**
+!Dockerfile
+!package.json
+!pnpm-lock.yaml
+!studio
+!studio/**
