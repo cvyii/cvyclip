@@ -1,0 +1,12 @@
+{
+  "name": "cvyclip-site",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Buildless CvyClip AI startup landing website",
+  "type": "module",
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "check": "node scripts/validate.mjs"
+  },
+  "engines": { "node": ">=22" }
+}
