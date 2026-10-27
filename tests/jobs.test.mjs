@@ -47,3 +47,11 @@ test('shutdown waits for the actual active worker after duplicate enqueue calls'
   const f=await fixture(t,{ai}),p=await f.makeProject();await Promise.all([f.jobs.enqueueAnalysis(p.id),f.jobs.enqueueAnalysis(p.id)]);await begun;
   let closed=false;const closing=f.jobs.shutdown().then(()=>{closed=true;});await new Promise(r=>setTimeout(r,20));try{assert.equal(closed,false);}finally{release();await closing;}
 });
+
+test('temporary workspace failure marks the job failed without calling a provider',async t=>{
+  const f=await fixture(t),p=await f.makeProject();
+  const blocked=join(f.config.dataDir,'blocked');await writeFile(blocked,'not a directory');f.config.dataDir=blocked;
+  await f.jobs.enqueueAnalysis(p.id);const done=await f.settle(p.id);
+  assert.equal(done.job.state,'failed');assert.equal(done.job.error.code,'processing_failed');
+  assert.equal((await f.jobs.usage()).usedSeconds,0);
+});

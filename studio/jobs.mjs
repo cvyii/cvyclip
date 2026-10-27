@@ -18,9 +18,10 @@ export async function createJobs({store,media,ai,config}){
     const job=project.job;controller=new AbortController();let lastProgress=0,pendingProgress=Promise.resolve();
     await update(project.id,job.id,p=>({...p,status:job.type==='analysis'?'analyzing':'exporting',job:{...p.job,state:'running',owner,heartbeat:stamp(),stage:'Preparing your video',progress:.03}}));
     const heartbeat=setInterval(()=>{Promise.all([store.updateJson(leaseKey,l=>{if(l?.owner!==owner)throw new Error('Lease lost');return {...l,expires:Date.now()+leaseMs};}),update(project.id,job.id,p=>({...p,job:{...p.job,heartbeat:stamp()}}))]).catch(()=>controller?.abort());},10000);heartbeat.unref();
-    const root=join(config.dataDir||tmpdir(),'tmp');await mkdir(root,{recursive:true});const directory=await mkdtemp(join(root,'job-'));
+    let directory;
     const progress=async(stage,value,extra={})=>update(project.id,job.id,p=>({...p,...extra,updatedAt:stamp(),job:{...p.job,stage,progress:value,heartbeat:stamp()}}));
     try{
+      const root=join(config.dataDir||tmpdir(),'tmp');await mkdir(root,{recursive:true});directory=await mkdtemp(join(root,'job-'));
       const input=join(directory,'source'+extname(project.sourceKey));await store.getFile(project.sourceKey,input);
       if(job.type==='analysis'){
         let transcript=project.transcript;
@@ -44,7 +45,7 @@ export async function createJobs({store,media,ai,config}){
         await update(project.id,job.id,p=>({...p,status:p.transcript?'ready':'uploaded',updatedAt:stamp(),exports:[{id:exportId,key,ratio:clip.ratio,sizeBytes:bytes,duration:clip.end-clip.start,createdAt:stamp(),clip},...p.exports],job:{...p.job,state:'ready',stage:'Your clip is ready',progress:1,finishedAt:stamp()}}));
       }
     }catch(error){const safe=error instanceof AppError?{code:error.code,message:error.message}:{code:'processing_failed',message:'Processing could not finish. Your uploaded video and completed work are saved. Choose Retry when ready.'};await update(project.id,job.id,p=>({...p,status:'error',updatedAt:stamp(),job:{...p.job,state:'failed',providerInFlight:false,error:safe,stage:'Needs your attention',finishedAt:stamp()}})).catch(()=>{});
-    }finally{clearInterval(heartbeat);await rm(directory,{recursive:true,force:true});controller=null;}
+    }finally{clearInterval(heartbeat);if(directory)await rm(directory,{recursive:true,force:true}).catch(()=>{});controller=null;}
   }
   async function drain(){
     try{do{wakeRequested=false;if(!await claim())return;for(;;){if(stopped)break;const next=(await projects.list()).find(p=>p.job?.state==='queued');if(!next)break;await processJob(next);}await release();}while(wakeRequested&&!stopped);}
