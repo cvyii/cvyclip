@@ -55,3 +55,17 @@ test('temporary workspace failure marks the job failed without calling a provide
   assert.equal(done.job.state,'failed');assert.equal(done.job.error.code,'processing_failed');
   assert.equal((await f.jobs.usage()).usedSeconds,0);
 });
+
+test('active job markers keep cloud processing awake and are removed on completion',async t=>{
+  let release,started;const held=new Promise(r=>{release=r;}),begun=new Promise(r=>{started=r;});
+  const ai={transcribeAudio:async()=>{started();await held;return {text:'Story',cues:[{start:0,end:10,text:'Story'}]};},suggestClips:async()=>[{start:0,end:10,title:'Story',rationale:'Complete.'}]};
+  const f=await fixture(t,{ai}),p=await f.makeProject();const queued=await f.jobs.enqueueAnalysis(p.id);await begun;
+  try{assert.deepEqual(await f.store.readJson('active/'+queued.job.id+'.json'),{projectId:p.id,jobId:queued.job.id});}finally{release();}
+  await f.settle(p.id);await f.jobs.shutdown();assert.deepEqual(await f.store.list('active/'),[]);
+});
+
+test('recovery removes orphan wake markers so an idle cloud app can scale to zero',async t=>{
+  const f=await fixture(t),p=await f.makeProject();
+  await f.store.writeJson('active/abandoned.json',{projectId:p.id,jobId:'abandoned'});
+  await f.jobs.recover();assert.deepEqual(await f.store.list('active/'),[]);
+});

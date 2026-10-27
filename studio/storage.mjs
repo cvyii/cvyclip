@@ -16,12 +16,13 @@ export async function createStore(config){
   if(config.azureStorageConnectionString||config.azureStorageUrl)return azureStore(config);
   const root=resolve(config.dataDir);await mkdir(root,{recursive:true});
   const file=key=>{safeKey(key);const path=resolve(root,key);if(!path.startsWith(root+sep))throw new AppError('Invalid storage path.');return path;};
-  async function readJson(key){try{return JSON.parse(await readFile(file(key),'utf8'));}catch(e){if(e.code==='ENOENT')return null;throw e;}}
-  async function writeJson(key,value){const path=file(key);await mkdir(dirname(path),{recursive:true});const temp=path+'.'+randomUUID()+'.tmp';try{await writeFile(temp,JSON.stringify(value));await rename(temp,path);}finally{await rm(temp,{force:true});}return value;}
+  async function readRaw(key){try{return JSON.parse(await readFile(file(key),'utf8'));}catch(e){if(e.code==='ENOENT')return null;throw e;}}
+  async function writeRaw(key,value){const path=file(key);await mkdir(dirname(path),{recursive:true});const temp=path+'.'+randomUUID()+'.tmp';try{await writeFile(temp,JSON.stringify(value));await rename(temp,path);}finally{await rm(temp,{force:true});}return value;}
+  const locked=(key,fn)=>serialized(root+'|'+safeKey(key),fn);
   async function list(prefix){safeKey(prefix);const result=[];async function walk(path,key){let entries;try{entries=await readdir(path,{withFileTypes:true});}catch(e){if(e.code==='ENOENT')return;throw e;}for(const entry of entries){const childKey=key+entry.name;if(entry.isDirectory())await walk(join(path,entry.name),childKey+'/');else if(entry.isFile()&&!entry.name.endsWith('.tmp')&&childKey.startsWith(prefix))result.push(childKey);}}await walk(root,'');return result;}
   return {
-    kind:'local',readJson,writeJson,
-    updateJson:(key,updater)=>serialized(root+'|'+safeKey(key),async()=>writeJson(key,await updater(await readJson(key)))),
+    kind:'local',readJson:async key=>locked(key,()=>readRaw(key)),writeJson:async(key,value)=>locked(key,()=>writeRaw(key,value)),
+    updateJson:async(key,updater)=>locked(key,async()=>writeRaw(key,await updater(await readRaw(key)))),
     async putFile(key,source){const path=file(key);await mkdir(dirname(path),{recursive:true});await copyFile(source,path);},
     async getFile(key,destination){await mkdir(dirname(destination),{recursive:true});await copyFile(file(key),destination);return destination;},
     async stat(key){try{const s=await stat(file(key));return {size:s.size,contentType:contentType(key)};}catch(e){if(e.code==='ENOENT')return null;throw e;}},

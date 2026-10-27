@@ -6,6 +6,7 @@ import {AppError,validateClip,normalizeCues,captionsToAss} from './domain.mjs';
 import {createProjects,projectKey} from './projects.mjs';
 
 const stamp=()=>new Date().toISOString(),leaseKey='jobs/worker.json',leaseMs=45000;
+const active=job=>job&&['queued','running'].includes(job.state),wakeKey=id=>`active/${id}.json`;
 export async function createJobs({store,media,ai,config}){
   const owner=randomUUID(),projects=createProjects(store,config);let draining=false,stopped=false,wakeRequested=false,drainPromise=Promise.resolve(),controller;
   const dayKey=()=>`usage/${new Date().toISOString().slice(0,10)}.json`;
@@ -14,6 +15,12 @@ export async function createJobs({store,media,ai,config}){
   async function update(id,jobId,fn){return store.updateJson(projectKey(id),p=>{if(!p||p.job?.id!==jobId)throw new AppError('This processing job changed. Reload the project.',409,'job_changed');return fn(p);});}
   async function claim(){const lease=await store.updateJson(leaseKey,current=>current?.owner&&current.owner!==owner&&current.expires>Date.now()?current:{owner,expires:Date.now()+leaseMs});return lease.owner===owner;}
   async function release(){await store.updateJson(leaseKey,current=>current?.owner===owner?{owner:null,expires:0}:current||{owner:null,expires:0});}
+  async function keepAwake(project){
+    if(!active(project.job))return;
+    const key=wakeKey(project.job.id);await store.writeJson(key,{projectId:project.id,jobId:project.job.id});
+    const current=await store.readJson(projectKey(project.id));
+    if(current?.job?.id!==project.job.id||!active(current.job))await store.remove(key);
+  }
   async function processJob(project){
     const job=project.job;controller=new AbortController();let lastProgress=0,pendingProgress=Promise.resolve();
     await update(project.id,job.id,p=>({...p,status:job.type==='analysis'?'analyzing':'exporting',job:{...p.job,state:'running',owner,heartbeat:stamp(),stage:'Preparing your video',progress:.03}}));
@@ -45,7 +52,7 @@ export async function createJobs({store,media,ai,config}){
         await update(project.id,job.id,p=>({...p,status:p.transcript?'ready':'uploaded',updatedAt:stamp(),exports:[{id:exportId,key,ratio:clip.ratio,sizeBytes:bytes,duration:clip.end-clip.start,createdAt:stamp(),clip},...p.exports],job:{...p.job,state:'ready',stage:'Your clip is ready',progress:1,finishedAt:stamp()}}));
       }
     }catch(error){const safe=error instanceof AppError?{code:error.code,message:error.message}:{code:'processing_failed',message:'Processing could not finish. Your uploaded video and completed work are saved. Choose Retry when ready.'};await update(project.id,job.id,p=>({...p,status:'error',updatedAt:stamp(),job:{...p.job,state:'failed',providerInFlight:false,error:safe,stage:'Needs your attention',finishedAt:stamp()}})).catch(()=>{});
-    }finally{clearInterval(heartbeat);if(directory)await rm(directory,{recursive:true,force:true}).catch(()=>{});controller=null;}
+    }finally{clearInterval(heartbeat);if(directory)await rm(directory,{recursive:true,force:true}).catch(()=>{});controller=null;const current=await store.readJson(projectKey(project.id));if(current?.job?.id!==job.id||!active(current.job))await store.remove(wakeKey(job.id));}
   }
   async function drain(){
     try{do{wakeRequested=false;if(!await claim())return;for(;;){if(stopped)break;const next=(await projects.list()).find(p=>p.job?.state==='queued');if(!next)break;await processJob(next);}await release();}while(wakeRequested&&!stopped);}
@@ -54,6 +61,12 @@ export async function createJobs({store,media,ai,config}){
   function schedule(){if(stopped)return;wakeRequested=true;if(draining)return;draining=true;drainPromise=drain().catch(()=>{});}
   async function recover(){
     const all=await projects.list();for(const p of all){if(p.job?.state==='running'&&new Date(p.job.heartbeat||0).getTime()<Date.now()-leaseMs){await update(p.id,p.job.id,current=>({...current,status:'error',job:{...current.job,state:'failed',providerInFlight:false,error:{code:'interrupted',message:'Processing was interrupted. Completed work is saved. Choose Retry; AI requests will not restart automatically.'},stage:'Interrupted',finishedAt:stamp()}}));}}
+    for(const p of await projects.list())await keepAwake(p);
+    for(const key of await store.list('active/')){
+      const marker=await store.readJson(key);if(!marker)continue;
+      const p=await store.readJson(projectKey(marker.projectId));
+      if(p?.job?.id!==marker.jobId||!active(p.job))await store.remove(key);
+    }
     schedule();
   }
   const timer=setInterval(()=>recover().catch(()=>{}),10000);timer.unref();
@@ -67,11 +80,11 @@ export async function createJobs({store,media,ai,config}){
         if(current.suggestions.length&&!retry)return current;
         if(current.job?.state==='failed'&&!retry)throw new AppError('Choose Retry to start another AI request.',409,'retry_required');
         return {...current,status:'analyzing',job:{id:randomUUID(),type:'analysis',state:'queued',progress:0,stage:'Waiting to analyze',createdAt:stamp(),heartbeat:stamp()}};
-      });schedule();return p;
+      });await keepAwake(p);schedule();return p;
     },
     async enqueueExport(id,input){
       const current=await projects.get(id);const clip=validateClip(input||current.clip,current.media.duration);
-      const p=await store.updateJson(projectKey(id),value=>{if(value.job&&['queued','running'].includes(value.job.state))throw new AppError('Wait for the current job to finish before exporting.',409,'project_busy');return {...value,clip,status:'exporting',job:{id:randomUUID(),type:'export',state:'queued',clip,cues:value.cues,stage:'Waiting to render',progress:0,createdAt:stamp(),heartbeat:stamp()}};});schedule();return p;
+      const p=await store.updateJson(projectKey(id),value=>{if(value.job&&['queued','running'].includes(value.job.state))throw new AppError('Wait for the current job to finish before exporting.',409,'project_busy');return {...value,clip,status:'exporting',job:{id:randomUUID(),type:'export',state:'queued',clip,cues:value.cues,stage:'Waiting to render',progress:0,createdAt:stamp(),heartbeat:stamp()}};});await keepAwake(p);schedule();return p;
     },
     async getJob(id){return (await projects.get(id)).job;},
     async shutdown(){stopped=true;clearInterval(timer);controller?.abort();await drainPromise;await release().catch(()=>{});}
