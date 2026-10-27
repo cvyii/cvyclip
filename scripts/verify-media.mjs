@@ -1,0 +1,12 @@
+import {writeFile,mkdir} from 'node:fs/promises';
+import {spawn} from 'node:child_process';
+import {createRequire} from 'node:module';
+import {resolve} from 'node:path';
+import {renderClip,probeMedia} from '../studio/media.mjs';
+import {validateClip,captionsToAss} from '../studio/domain.mjs';
+const require=createRequire(import.meta.url),root=resolve('.test-tmp');await mkdir(root,{recursive:true});
+const clip=validateClip({start:1,end:6,ratio:'9:16',captionStyle:'highlight'},10),captionsPath=resolve(root,'captions.ass'),output=resolve(root,'captioned-vertical.mp4');
+await writeFile(captionsPath,captionsToAss([{start:1,end:4,text:'One good idea.\nسڵاو لە CvyClip'},{start:4,end:6,text:'Make room for your story.'}],clip));
+await renderClip({input:resolve(root,'sample-video.mp4'),output,captionsPath,clip});
+const frame=resolve(root,'captioned-frame.png');await new Promise((done,reject)=>{const p=spawn(process.env.FFMPEG_PATH||require('ffmpeg-static'),['-hide_banner','-loglevel','error','-ss','1','-i',output,'-frames:v','1','-y',frame],{windowsHide:true,stdio:'inherit'});p.on('exit',c=>c===0?done():reject(new Error('Frame extraction failed.')));});
+console.log(JSON.stringify({output,frame,media:await probeMedia(output)}));
