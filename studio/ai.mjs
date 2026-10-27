@@ -3,7 +3,8 @@ import {AppError,validateClip,normalizeCues} from './domain.mjs';
 
 function providerError(status,body){
   if(status===401||status===403)return new AppError('OpenAI could not authorize this key. Check its project and permissions.',502,'provider_auth');
-  if(status===429&&['insufficient_quota','billing_hard_limit_reached'].includes(body?.error?.code))return new AppError('Your OpenAI API account needs billing credit or a higher usage allowance. Your video is saved.',402,'provider_quota');
+  const quotaCodes=['insufficient_quota','billing_hard_limit_reached','credit_balance_exhausted','organization_spend_limit_exceeded','project_spend_limit_exceeded','organization_usage_limit_exceeded'];
+  if(status===429&&(quotaCodes.includes(body?.error?.code)||body?.error?.type==='insufficient_quota'))return new AppError('Your OpenAI API account needs billing credit or a higher usage/spend allowance. Check OpenAI billing and limits before retrying. Your video is saved.',402,'provider_quota');
   if(status===429)return new AppError('OpenAI is busy or rate-limiting this project. Wait, then choose Retry.',429,'provider_rate_limit');
   return new AppError('The AI provider could not complete this request. Your video and completed transcript are saved.',502,'provider_error');
 }

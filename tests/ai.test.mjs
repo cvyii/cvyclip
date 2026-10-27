@@ -18,6 +18,14 @@ test('provider quota errors are actionable and never reveal a key or raw provide
   const ai=createAI(config,{fetchImpl:async()=>Response.json({error:{message:'raw secret '+config.openaiApiKey,code:'insufficient_quota'}},{status:429})});
   await assert.rejects(ai.transcribeAudio(audio),e=>e.code==='provider_quota'&&!e.message.includes(config.openaiApiKey));
 });
+
+test('current provider credit and spend-limit codes do not masquerade as retryable rate limits',async t=>{
+  const root=await mkdtemp(join(tmpdir(),'cvy-billing-'));t.after(()=>rm(root,{recursive:true,force:true}));const audio=join(root,'speech.mp3');await writeFile(audio,'audio');
+  for(const code of ['credit_balance_exhausted','organization_spend_limit_exceeded','project_spend_limit_exceeded','organization_usage_limit_exceeded']){
+    const ai=createAI(config,{fetchImpl:async()=>Response.json({error:{code,type:'insufficient_quota'}},{status:429})});
+    await assert.rejects(ai.transcribeAudio(audio),e=>e.code==='provider_quota'&&e.status===402);
+  }
+});
 test('highlight selection validates structured output timing rather than trusting AI values',async()=>{
   const transcript={text:'A story',cues:[{start:0,end:15,text:'A story'}]};
   const response=clips=>({output:[{type:'message',content:[{type:'output_text',text:JSON.stringify({clips})}]}]});

@@ -4,11 +4,11 @@ The studio implementation is on feature/cvyclip-studio. The public GitHub Pages 
 
 ## Verified
 
-- Full automated suite: 38 tests, including real FFmpeg exports in vertical, square, and wide formats with audio/captions.
+- Full automated suite: 39 tests, including real FFmpeg exports in vertical, square, and wide formats with audio/captions.
 - Browser: upload a real synthetic 10-second MP4, edit caption text/timing, save a 1–6 second selection, render/download a 5-second 1080x1920 H.264 MP4 with audio, and restore the project after reload.
 - Session recovery: restart the real local server with unsaved caption edits, receive a sign-in prompt, sign in again, restore the unsaved text and save successfully.
 - Mobile 390px and desktop 1440px layouts: correct responsive arrangement and no measured horizontal overflow; mobile project drawer opens/closes.
-- Linux container workflow at 1858465: successful tests, image build, running-container upload/edit/render/download smoke, and registry push. Anonymous image pull verified. Later review fixes require their new CI run before deployment.
+- Linux container workflow at 1858465: successful tests, image build, running-container upload/edit/render/download smoke, and registry push. Anonymous image pull verified. The reviewed 28ab60c build also passed its 38-test Linux suite and full container smoke test. A later provider-error classification update has 39 local passing tests.
 - Independent read-only review: six Important findings reproduced with failing regressions and fixed. No Critical issues or deferred minor findings.
 - Azure CLI signed into the existing Azure for Students subscription with normal browser authentication. Security defaults remain enabled.
 - Dedicated resource group cvyclip-studio-rg created in allowed UAE North. Container Apps, Storage and Managed Identity providers enabled. UAE North appears in the provider's supported environment locations.
@@ -17,7 +17,7 @@ The studio implementation is on feature/cvyclip-studio. The public GitHub Pages 
 
 ## Pending before launch
 
-The private settings file still has no API key or production workspace password. The user must enter a replacement OpenAI key and a password of at least 12 characters in the laptop-only setup form, then save. Secrets shared in chat/comments should be replaced, not committed or copied into reports.
+The private settings were saved through the laptop-only form. The first real transcription request returned HTTP 429; OpenAI account credit/rate/spend limits require diagnosis. No automatic paid retry occurred. Secrets are ignored by Git and are never included in this report.
 
 After private setup: run one short real OpenAI transcription/highlight test; deploy the reviewed image with private Blob persistence; verify HTTPS login, media access, uploads, AI/export/download, persistence and scaler behavior; then update the landing CTA and feature/privacy copy. No Azure Container App or media storage has been deployed yet. No live AI success is claimed.
 
