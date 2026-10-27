@@ -1,12 +1,24 @@
 {
   "name": "cvyclip-site",
-  "version": "1.0.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Buildless CvyClip AI startup landing website",
+  "description": "CvyClip AI video clipping studio and public website",
   "type": "module",
   "scripts": {
-    "start": "node scripts/serve.mjs",
-    "check": "node scripts/validate.mjs"
+    "start": "node --env-file-if-exists=.env.local studio/server.mjs",
+    "start:site": "node scripts/serve.mjs",
+    "test": "node scripts/run-tests.mjs",
+    "check": "node scripts/validate.mjs && node scripts/run-tests.mjs"
   },
-  "engines": { "node": ">=22" }
+  "engines": {
+    "node": ">=22"
+  },
+  "dependencies": {
+    "@azure/identity": "^4.14.0",
+    "@azure/storage-blob": "^12.34.0",
+    "busboy": "^1.6.0",
+    "express": "^5.3.0",
+    "ffmpeg-static": "^5.3.0",
+    "ffprobe-static": "^3.1.0"
+  }
 }
