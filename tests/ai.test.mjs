@@ -26,3 +26,10 @@ test('highlight selection validates structured output timing rather than trustin
   const bad=createAI(config,{fetchImpl:async()=>Response.json(response([{start:-2,end:900,title:'bad',rationale:'bad'}]))});
   await assert.rejects(bad.suggestClips(transcript,15),e=>e.code==='invalid_ai_output');
 });
+
+test('AI highlights reject missing, null and nonnumeric timing instead of filling editor defaults',async()=>{
+  for(const timing of [{},{start:null,end:null},{start:'1',end:10}]){
+    const ai=createAI(config,{fetchImpl:async()=>Response.json({output_text:JSON.stringify({clips:[{...timing,title:'Incomplete',rationale:'No reliable timing'}]})})});
+    await assert.rejects(ai.suggestClips({cues:[{start:0,end:60,text:'Speech'}]},60),e=>e.code==='invalid_ai_output');
+  }
+});

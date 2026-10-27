@@ -23,21 +23,22 @@ export async function probeMedia(path){
   let data;try{data=JSON.parse(stdout);}catch{throw new AppError('This video metadata could not be read.');}
   const video=data.streams?.find(s=>s.codec_type==='video'&&!s.disposition?.attached_pic);
   if(!video)throw new AppError('This file does not contain a video track.');
-  let width=Number(video.width),height=Number(video.height);
+  const codedWidth=Number(video.width),codedHeight=Number(video.height),[sarN,sarD]=String(video.sample_aspect_ratio||'1:1').split(':').map(Number),sampleAspectRatio=sarN>0&&sarD>0?sarN/sarD:1;
+  let width=Math.round(codedWidth*sampleAspectRatio),height=codedHeight;
   const rotation=Number(video.side_data_list?.find(s=>s.rotation!==undefined)?.rotation??video.tags?.rotate??0);
   if(Math.abs(rotation)%180===90)[width,height]=[height,width];
   const [n,d]=String(video.avg_frame_rate||'30/1').split('/').map(Number);
-  return {duration:Number(data.format?.duration??video.duration),width,height,fps:d?n/d:30,hasAudio:!!data.streams?.some(s=>s.codec_type==='audio'),codec:video.codec_name,rotation};
+  return {duration:Number(data.format?.duration??video.duration),width,height,codedWidth,codedHeight,sampleAspectRatio,fps:d?n/d:30,hasAudio:!!data.streams?.some(s=>s.codec_type==='audio'),codec:video.codec_name,rotation};
 }
 export async function extractAudio(input,output,{signal}={}){
   await execute('ffmpeg',['-hide_banner','-loglevel','error','-nostdin','-i',input,'-vn','-ac','1','-ar','16000','-c:a','libmp3lame','-b:a','64k','-y',output],{timeoutMs:300000,signal});
   return output;
 }
 export async function renderClip({input,output,captionsPath,clip,onProgress,signal}){
-  const {width,height}=outputSize(clip.ratio),duration=clip.end-clip.start;
+  const {width,height}=outputSize(clip.ratio),duration=clip.end-clip.start,ratio=width/height;
   const filters=clip.mode==='fit'
-    ?[`scale=${width}:${height}:force_original_aspect_ratio=decrease:force_divisible_by=2`,`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=0x101016`]
-    :[`scale=${width}:${height}:force_original_aspect_ratio=increase:force_divisible_by=2`,`crop=${width}:${height}:(iw-${width})*${clip.x}:(ih-${height})*${clip.y}`];
+    ?[`scale=w='if(gte(dar,${ratio}),${width},max(2,trunc(${height}*dar/2)*2))':h='if(gte(dar,${ratio}),max(2,trunc(${width}/dar/2)*2),${height})'`,'setsar=1',`pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2:color=0x101016`]
+    :[`crop=w='max(2,trunc(min(iw,ih*${ratio}/sar)/2)*2)':h='max(2,trunc(min(ih,iw*sar/${ratio})/2)*2)':x='(iw-ow)*${clip.x}':y='(ih-oh)*${clip.y}'`,`scale=${width}:${height}`];
   filters.push('setsar=1');
   if(clip.captions&&captionsPath){const name=basename(captionsPath);if(!/^[A-Za-z0-9_.-]+\.ass$/.test(name))throw new AppError('Invalid caption file.');filters.push(`subtitles=filename=${name}`);}
   let buffer='';onProgress?.(0);

@@ -48,6 +48,6 @@ export function validateMedia(media){
   if(!media||!Number.isFinite(media.duration)||media.duration<=0||!Number.isFinite(media.width)||!Number.isFinite(media.height)||media.width<16||media.height<16)fail('This file does not contain a supported video.');
   if(media.duration>1200)fail('Please upload a video of 20 minutes or less.');
   if(!media.hasAudio)fail('This video has no audio track. Please choose a video with speech.');
-  if(media.width>8192||media.height>8192)fail('This video resolution is too large. Use a source no larger than 8K.');
+  if(media.width>8192||media.height>8192||media.codedWidth>8192||media.codedHeight>8192)fail('This video resolution is too large. Use a source no larger than 8K.');
   return media;
 }

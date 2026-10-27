@@ -69,3 +69,15 @@ test('recovery removes orphan wake markers so an idle cloud app can scale to zer
   await f.store.writeJson('active/abandoned.json',{projectId:p.id,jobId:'abandoned'});
   await f.jobs.recover();assert.deepEqual(await f.store.list('active/'),[]);
 });
+
+test('a fenced worker cannot spend again or resurrect its terminal attempt after lease loss',async t=>{
+  let release,started,highlightCalls=0;const held=new Promise(r=>{release=r;}),begun=new Promise(r=>{started=r;});
+  const ai={transcribeAudio:async()=>{started();await held;return {text:'Story',cues:[{start:0,end:10,text:'Story'}]};},suggestClips:async()=>{highlightCalls++;return [{start:0,end:10,title:'Story',rationale:'Complete.'}];}};
+  const f=await fixture(t,{ai}),p=await f.makeProject();await f.jobs.enqueueAnalysis(p.id);await begun;
+  await f.store.updateJson(projectKey(p.id),v=>({...v,job:{...v.job,heartbeat:'2000-01-01T00:00:00Z'}}));
+  await f.store.writeJson('jobs/worker.json',{owner:'replacement-worker',expires:Date.now()+60000});
+  await f.jobs.recover();assert.equal((await f.projects.get(p.id)).job.state,'failed');
+  release();await f.jobs.shutdown();const done=await f.projects.get(p.id);
+  assert.equal(highlightCalls,0);assert.equal(done.job.state,'failed');assert.equal(done.job.error.code,'interrupted');
+  assert.equal((await f.store.readJson('jobs/worker.json')).owner,'replacement-worker');
+});

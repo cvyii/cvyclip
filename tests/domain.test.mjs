@@ -37,3 +37,7 @@ test('source validation rejects silent, excessively long and non-video media', (
   assert.throws(()=>validateMedia({duration:10,width:0,height:0,hasAudio:true}));
   assert.doesNotThrow(()=>validateMedia({duration:10,width:1920,height:1080,hasAudio:true}));
 });
+
+test('display-aspect correction cannot hide oversized coded video dimensions',()=>{
+  assert.throws(()=>validateMedia({duration:10,width:4500,height:1000,codedWidth:9000,codedHeight:1000,hasAudio:true}));
+});
