@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 650" fill="none">
+<defs><linearGradient id="wall" x2="760" y2="650" gradientUnits="userSpaceOnUse"><stop stop-color="#eac7ad"/><stop offset="1" stop-color="#a1756c"/></linearGradient><linearGradient id="shirt" x2="0" y2="650" gradientUnits="userSpaceOnUse"><stop stop-color="#3c424b"/><stop offset="1" stop-color="#1d262c"/></linearGradient><pattern id="grain" width="8" height="8" patternUnits="userSpaceOnUse"><circle cx="1" cy="1" r=".65" fill="#fff" opacity=".09"/></pattern></defs>
+<path fill="url(#wall)" d="M0 0h760v650H0z"/><circle cx="380" cy="260" r="225" fill="#f5d8ba" opacity=".54"/>
+<path d="M65 0v650M83 0v650M101 0v650M119 0v650M137 0v650" stroke="#593d39" stroke-width="7" opacity=".23"/>
+<path d="M625 650V316" stroke="#494c38" stroke-width="8"/><path d="M625 440q-100-10-105-110 108 17 105 110M625 391q90-21 91-111-92 16-91 111M625 504q-88-2-100-80 91 8 100 80M625 345q-56-50-33-110 61 49 33 110" fill="#5b674a"/><path d="m590 570 17 80h43l15-80z" fill="#916247"/>
+<path d="M140 650v-80q0-146 137-174h137q134 25 144 174v80" fill="url(#shirt)"/><path d="M291 353v73q47 47 92-1v-79" fill="#bd7957"/>
+<path d="M294 398q43 29 89-1v28q-45 40-92 1z" fill="#d99772"/>
+<path d="M239 208q3-126 105-126 114 0 112 133l-15 112q-20 73-96 76-80-1-98-78z" fill="#e0a17b"/>
+<path d="M238 243q-26-141 36-173 60-43 129-10 78-5 65 144l-22 61-13-76q-43 4-75-29-33 42-99 43l-8 62z" fill="#302b2a"/>
+<path d="M244 244q-29-24-27 17 0 31 30 35M443 244q30-24 28 17-1 31-30 35" fill="#cf8d67"/>
+<path d="M281 246q17-12 32 0M373 246q18-12 33 0" stroke="#48332c" stroke-width="6" stroke-linecap="round"/>
+<path d="M291 266v5M394 266v5" stroke="#2e2a29" stroke-width="7" stroke-linecap="round"/><path d="m343 268-9 35h16" stroke="#bc7754" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+<path d="M307 325q36 32 72 0z" fill="#743e34"/><path d="M314 326h57q-26 17-57 0" fill="#fff5e8"/>
+<path d="M229 228q-9-142 114-147 124 0 120 147" stroke="#25282c" stroke-width="19"/><path d="M229 231q-14 9-13 33v32q0 21 18 23h12v-90zM455 231q18 9 18 33v32q0 21-18 23h-12v-90z" fill="#282c32"/><path d="M233 240v61M454 240v61" stroke="#5e6269" stroke-width="6" stroke-linecap="round"/>
+<path d="m279 429 64 56 64-56M343 485v165" stroke="#59616c" stroke-width="3"/><path d="M255 512h42" stroke="#e8f0ce" stroke-width="4"/><path d="m173 650 15-113M513 650l-22-113" stroke="#141b23" stroke-width="4"/>
+<path d="m0 630 760-25v45H0" fill="#906348"/>
+<path d="m501 650-53-144" stroke="#1d2127" stroke-width="13"/><path d="m442 504 90-116" stroke="#1d2127" stroke-width="13"/><rect x="388" y="372" width="67" height="123" rx="32" transform="rotate(-27 388 372)" fill="#20262c"/><path d="m414 389 27-14M420 401l27-14M426 413l27-14M432 425l27-14M438 437l27-14" stroke="#535c61" stroke-width="4" stroke-linecap="round"/>
+<path fill="url(#grain)" d="M0 0h760v650H0z"/>
+</svg>
